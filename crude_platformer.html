@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Potato Pete's Ridiculous Adventure</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #87CEEB, #98FB98);
+            font-family: 'Comic Sans MS', cursive;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #gameCanvas {
+            border: 3px solid #8B4513;
+            display: block;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 60%, #228B22 60%, #228B22 100%);
+            max-width: 100%;
+            max-height: 70%;
+            width: auto;
+            height: auto;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 0px black;
+            z-index: 100;
+        }
+        
+        #soundToggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #333;
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 100;
+        }
+        
+        #mobileControls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 150;
+        }
+        
+        .control-btn {
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #333;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+        }
+        
+        .control-btn:active {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(0.9);
+        }
+        
+        #jumpBtn {
+            background: rgba(255, 255, 0, 0.8);
+            width: 80px;
+            height: 80px;
+            font-size: 16px;
+            border-radius: 50%;
+        }
+        
+        #jumpBtn:active {
+            background: rgba(255, 255, 0, 1);
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-size: 14px;
+            text-shadow: 2px 2px 0px black;
+            max-width: 90%;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 200;
+            max-width: 90%;
+            box-sizing: border-box;
+        }
+        
+        #gameOver button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            #ui {
+                font-size: 16px;
+            }
+            
+            .control-btn {
+                width: 60px;
+                height: 60px;
+                font-size: 20px;
+            }
+            
+            #jumpBtn {
+                width: 70px;
+                height: 70px;
+                font-size: 14px;
+            }
+            
+            #instructions {
+                font-size: 12px;
+                bottom: 100px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #ui {
+                font-size: 14px;
+                top: 5px;
+                left: 5px;
+            }
+            
+            .control-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 18px;
+            }
+            
+            #jumpBtn {
+                width: 60px;
+                height: 60px;
+                font-size: 12px;
+            }
+            
+            #mobileControls {
+                bottom: 15px;
+                padding: 0 15px;
+            }
+            
+            #instructions {
+                font-size: 11px;
+                bottom: 85px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div>Score: <span id="score">0</span></div>
+        <div>Lives: <span id="lives">3</span></div>
+        <div>Farts: <span id="farts">∞</span></div>
+    </div>
+    
+    <div id="soundToggle" onclick="toggleSound()">🔊 ON</div>
+    
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div id="instructions">
+            Use buttons below or keyboard • Collect burgers, avoid angry toilets!
+        </div>
+
+        <div id="mobileControls">
+            <button class="control-btn" id="leftBtn">←</button>
+            <button class="control-btn" id="jumpBtn">FART<br>JUMP</button>
+            <button class="control-btn" id="rightBtn">→</button>
+        </div>
+    </div>
+
+    <div id="gameOver">
+        <h2>GAME OVER!</h2>
+        <p id="finalScore"></p>
+        <p>Pete has been defeated by bathroom humor!</p>
+        <button onclick="restartGame()">Try Again (Pete Believes in You!)</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameRunning = true;
+        let score = 0;
+        let lives = 3;
+        let keys = {};
+        let soundEnabled = true;
+        
+        // Audio context and sound effects
+        let audioContext;
+        let sounds = {};
+        
+        // Initialize audio
+        function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                createSounds();
+            } catch (e) {
+                console.log('Audio not supported');
+                soundEnabled = false;
+            }
+        }
+        
+        function createSounds() {
+            // Fart sound (low frequency rumble)
+            sounds.fart = () => {
+                if (!soundEnabled || !audioContext) return;
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(80, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(40, audioContext.currentTime + 0.3);
+                oscillator.type = 'sawtooth';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            };
+            
+            // Collect burger sound (happy ding)
+            sounds.collect = () => {
+                if (!soundEnabled || !audioContext) return;
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + 0.1);
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+            };
+            
+            // Death sound (toilet flush)
+            sounds.death = () => {
+                if (!soundEnabled || !audioContext) return;
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                const filter = audioContext.createBiquadFilter();
+                
+                oscillator.connect(filter);
+                filter.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 1);
+                oscillator.type = 'sawtooth';
+                
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1000, audioContext.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 1);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 1);
+            };
+            
+            // Jump landing sound (thud)
+            sounds.land = () => {
+                if (!soundEnabled || !audioContext) return;
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(120, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(60, audioContext.currentTime + 0.1);
+                oscillator.type = 'square';
+                
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            };
+            
+            // Toilet enemy sound (angry growl)
+            sounds.enemyHit = () => {
+                if (!soundEnabled || !audioContext) return;
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(180, audioContext.currentTime + 0.2);
+                oscillator.type = 'sawtooth';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            };
+        }
+        
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const button = document.getElementById('soundToggle');
+            button.textContent = soundEnabled ? '🔊 ON' : '🔇 OFF';
+            
+            if (soundEnabled && !audioContext) {
+                initAudio();
+            }
+        }
+        
+        // Player object (Potato Pete)
+        const player = {
+            x: 100,
+            y: 400,
+            width: 40,
+            height: 50,
+            velX: 0,
+            velY: 0,
+            grounded: false,
+            wasGrounded: false,
+            color: '#8B4513',
+            fartCooldown: 0
+        };
+        
+        // Platforms
+        const platforms = [
+            {x: 0, y: 550, width: 800, height: 50, color: '#654321'},
+            {x: 200, y: 450, width: 150, height: 20, color: '#654321'},
+            {x: 450, y: 350, width: 150, height: 20, color: '#654321'},
+            {x: 100, y: 250, width: 150, height: 20, color: '#654321'},
+            {x: 550, y: 200, width: 150, height: 20, color: '#654321'},
+            {x: 300, y: 150, width: 100, height: 20, color: '#654321'}
+        ];
+        
+        // Enemies (angry toilets)
+        const enemies = [
+            {x: 250, y: 430, width: 30, height: 30, velX: 1, color: 'white', angry: true},
+            {x: 500, y: 330, width: 30, height: 30, velX: -1, color: 'white', angry: true},
+            {x: 600, y: 180, width: 30, height: 30, velX: 1, color: 'white', angry: true}
+        ];
+        
+        // Collectibles (burgers)
+        const collectibles = [
+            {x: 275, y: 420, width: 25, height: 25, collected: false},
+            {x: 525, y: 320, width: 25, height: 25, collected: false},
+            {x: 175, y: 220, width: 25, height: 25, collected: false},
+            {x: 625, y: 170, width: 25, height: 25, collected: false},
+            {x: 350, y: 120, width: 25, height: 25, collected: false}
+        ];
+        
+        // Particles for fart effects
+        const particles = [];
+        
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+        
+        // Mobile touch controls
+        let leftPressed = false;
+        let rightPressed = false;
+        let jumpPressed = false;
+        let activeTouches = new Map();
+        
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+        const jumpBtn = document.getElementById('jumpBtn');
+        
+        function releaseButton(button) {
+            if (button === 'left') {
+                leftPressed = false;
+                keys['ArrowLeft'] = false;
+            } else if (button === 'right') {
+                rightPressed = false;
+                keys['ArrowRight'] = false;
+            } else if (button === 'jump') {
+                jumpPressed = false;
+                keys['Space'] = false;
+            }
+        }
+        
+        function releaseAllButtons() {
+            releaseButton('left');
+            releaseButton('right');
+            releaseButton('jump');
+            activeTouches.clear();
+        }
+        
+        // Left button
+        leftBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            leftPressed = true;
+            keys['ArrowLeft'] = true;
+            for (let touch of e.changedTouches) {
+                activeTouches.set(touch.identifier, 'left');
+            }
+        });
+        
+        leftBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            releaseButton('left');
+            for (let touch of e.changedTouches) {
+                activeTouches.delete(touch.identifier);
+            }
+        });
+        
+        leftBtn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            releaseButton('left');
+            for (let touch of e.changedTouches) {
+                activeTouches.delete(touch.identifier);
+            }
+        });
+        
+        leftBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            leftPressed = true;
+            keys['ArrowLeft'] = true;
+        });
+        
+        leftBtn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            releaseButton('left');
+        });
+        
+        leftBtn.addEventListener('mouseleave', (e) => {
+            releaseButton('left');
+        });
+        
+        // Right button
+        rightBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            rightPressed = true;
+            keys['ArrowRight'] = true;
+            for (let touch of e.changedTouches) {
+                activeTouches.set(touch.identifier, 'right');
+            }
+        });
+        
+        rightBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            releaseButton('right');
+            for (let touch of e.changedTouches) {
+                activeTouches.delete(touch.identifier);
+            }
+        });
+        
+        rightBtn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            releaseButton('right');
+            for (let touch of e.changedTouches) {
+                activeTouches.delete(touch.identifier);
+            }
+        });
+        
+        rightBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            rightPressed = true;
+            keys['ArrowRight'] = true;
+        });
+        
+        rightBtn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            releaseButton('right');
+        });
+        
+        rightBtn.addEventListener('mouseleave', (e) => {
+            releaseButton('right');
+        });
+        
+        // Jump button
+        jumpBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jumpPressed = true;
+            keys['Space'] = true;
+            for (let touch of e.changedTouches) {
+                activeTouches.set(touch.identifier, 'jump');
+            }
+        });
+        
+        jumpBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            releaseButton('jump');
+            for (let touch of e.changedTouches) {
+                activeTouches.delete(touch.identifier);
+            }
+        });
+        
+        jumpBtn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            releaseButton('jump');
+            for (let touch of e.changedTouches) {
+                activeTouches.delete(touch.identifier);
+            }
+        });
+        
+        jumpBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            jumpPressed = true;
+            keys['Space'] = true;
+        });
+        
+        jumpBtn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            releaseButton('jump');
+        });
+        
+        jumpBtn.addEventListener('mouseleave', (e) => {
+            releaseButton('jump');
+        });
+        
+        // Global touch move handler to detect when touch moves off buttons
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            
+            for (let touch of e.touches) {
+                const element = document.elementFromPoint(touch.clientX, touch.clientY);
+                const touchId = touch.identifier;
+                const buttonType = activeTouches.get(touchId);
+                
+                if (buttonType) {
+                    // Check if touch has moved off the original button
+                    const isOnLeftBtn = element === leftBtn || leftBtn.contains(element);
+                    const isOnRightBtn = element === rightBtn || rightBtn.contains(element);
+                    const isOnJumpBtn = element === jumpBtn || jumpBtn.contains(element);
+                    
+                    if (buttonType === 'left' && !isOnLeftBtn) {
+                        releaseButton('left');
+                        activeTouches.delete(touchId);
+                    } else if (buttonType === 'right' && !isOnRightBtn) {
+                        releaseButton('right');
+                        activeTouches.delete(touchId);
+                    } else if (buttonType === 'jump' && !isOnJumpBtn) {
+                        releaseButton('jump');
+                        activeTouches.delete(touchId);
+                    }
+                }
+            }
+        }, { passive: false });
+        
+        // Release all buttons if page loses focus or visibility
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                releaseAllButtons();
+            }
+        });
+        
+        window.addEventListener('blur', releaseAllButtons);
+        
+        // Prevent context menu on long press
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        function drawPlayer() {
+            // Draw Potato Pete
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.fillRect(player.x + 8, player.y + 10, 8, 8);
+            ctx.fillRect(player.x + 24, player.y + 10, 8, 8);
+            
+            // Pupils
+            ctx.fillStyle = 'black';
+            ctx.fillRect(player.x + 10, player.y + 12, 4, 4);
+            ctx.fillRect(player.x + 26, player.y + 12, 4, 4);
+            
+            // Mouth
+            ctx.fillStyle = 'red';
+            ctx.fillRect(player.x + 15, player.y + 25, 10, 5);
+            
+            // Arms (stick arms)
+            ctx.strokeStyle = '#654321';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y + 20);
+            ctx.lineTo(player.x - 10, player.y + 30);
+            ctx.moveTo(player.x + player.width, player.y + 20);
+            ctx.lineTo(player.x + player.width + 10, player.y + 30);
+            ctx.stroke();
+        }
+        
+        function drawPlatforms() {
+            platforms.forEach(platform => {
+                ctx.fillStyle = platform.color;
+                ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+                
+                // Add some texture
+                ctx.fillStyle = '#8B4513';
+                for(let i = 0; i < platform.width; i += 20) {
+                    ctx.fillRect(platform.x + i + 5, platform.y + 5, 3, 3);
+                }
+            });
+        }
+        
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                // Draw toilet base
+                ctx.fillStyle = enemy.color;
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                
+                // Draw toilet seat
+                ctx.fillStyle = '#666';
+                ctx.fillRect(enemy.x + 5, enemy.y - 5, enemy.width - 10, 8);
+                
+                // Angry eyes
+                ctx.fillStyle = 'red';
+                ctx.fillRect(enemy.x + 5, enemy.y + 8, 6, 6);
+                ctx.fillRect(enemy.x + 19, enemy.y + 8, 6, 6);
+                
+                // Angry mouth
+                ctx.fillStyle = 'black';
+                ctx.fillRect(enemy.x + 10, enemy.y + 18, 10, 3);
+            });
+        }
+        
+        function drawCollectibles() {
+            collectibles.forEach(item => {
+                if (!item.collected) {
+                    // Draw burger
+                    ctx.fillStyle = '#8B4513'; // Bun top
+                    ctx.fillRect(item.x, item.y, item.width, 8);
+                    
+                    ctx.fillStyle = '#228B22'; // Lettuce
+                    ctx.fillRect(item.x, item.y + 8, item.width, 3);
+                    
+                    ctx.fillStyle = '#8B0000'; // Meat
+                    ctx.fillRect(item.x, item.y + 11, item.width, 6);
+                    
+                    ctx.fillStyle = '#FFD700'; // Cheese
+                    ctx.fillRect(item.x, item.y + 17, item.width, 3);
+                    
+                    ctx.fillStyle = '#8B4513'; // Bun bottom
+                    ctx.fillRect(item.x, item.y + 20, item.width, 5);
+                }
+            });
+        }
+        
+        function drawParticles() {
+            particles.forEach((particle, index) => {
+                ctx.fillStyle = `rgba(${particle.r}, ${particle.g}, ${particle.b}, ${particle.alpha})`;
+                ctx.fillRect(particle.x, particle.y, 3, 3);
+                
+                particle.x += particle.velX;
+                particle.y += particle.velY;
+                particle.alpha -= 0.02;
+                
+                if (particle.alpha <= 0) {
+                    particles.splice(index, 1);
+                }
+            });
+        }
+        
+        function createFartParticles() {
+            for (let i = 0; i < 10; i++) {
+                particles.push({
+                    x: player.x + player.width / 2,
+                    y: player.y + player.height,
+                    velX: (Math.random() - 0.5) * 4,
+                    velY: Math.random() * 2 + 1,
+                    r: Math.random() > 0.5 ? 139 : 165,
+                    g: Math.random() > 0.5 ? 69 : 42,
+                    b: 19,
+                    alpha: 1
+                });
+            }
+        }
+        
+        function updatePlayer() {
+            if (player.fartCooldown > 0) player.fartCooldown--;
+            
+            // Horizontal movement
+            if (keys['ArrowLeft']) {
+                player.velX = -5;
+            } else if (keys['ArrowRight']) {
+                player.velX = 5;
+            } else {
+                player.velX *= 0.8; // Friction
+            }
+            
+            // Fart jump
+            if (keys['Space'] && player.grounded && player.fartCooldown === 0) {
+                player.velY = -15;
+                player.grounded = false;
+                player.fartCooldown = 20;
+                createFartParticles();
+                sounds.fart && sounds.fart();
+            }
+            
+            // Gravity
+            player.velY += 0.8;
+            
+            // Update position
+            player.x += player.velX;
+            player.y += player.velY;
+            
+            // Boundary checks
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+            
+            // Reset grounded
+            player.wasGrounded = player.grounded;
+            player.grounded = false;
+            
+            // Platform collision
+            platforms.forEach(platform => {
+                if (player.x < platform.x + platform.width &&
+                    player.x + player.width > platform.x &&
+                    player.y + player.height > platform.y &&
+                    player.y + player.height < platform.y + platform.height + 10) {
+                    
+                    if (player.velY > 0) {
+                        player.y = platform.y - player.height;
+                        player.velY = 0;
+                        player.grounded = true;
+                        
+                        // Play landing sound if just landed
+                        if (!player.wasGrounded && player.grounded) {
+                            sounds.land && sounds.land();
+                        }
+                    }
+                }
+            });
+            
+            // Fall off screen
+            if (player.y > canvas.height) {
+                lives--;
+                resetPlayerPosition();
+            }
+        }
+        
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                enemy.x += enemy.velX;
+                
+                // Bounce off platform edges or screen edges
+                if (enemy.x <= 0 || enemy.x + enemy.width >= canvas.width) {
+                    enemy.velX *= -1;
+                }
+                
+                // Check if enemy is on a platform edge
+                let onPlatform = false;
+                platforms.forEach(platform => {
+                    if (enemy.x + enemy.width > platform.x && 
+                        enemy.x < platform.x + platform.width &&
+                        Math.abs(enemy.y + enemy.height - platform.y) < 5) {
+                        onPlatform = true;
+                        
+                        // Reverse at platform edges
+                        if (enemy.x <= platform.x || enemy.x + enemy.width >= platform.x + platform.width) {
+                            enemy.velX *= -1;
+                        }
+                    }
+                });
+            });
+        }
+        
+        function checkCollisions() {
+            // Enemy collision
+            enemies.forEach(enemy => {
+                if (player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y) {
+                    
+                    sounds.enemyHit && sounds.enemyHit();
+                    setTimeout(() => {
+                        sounds.death && sounds.death();
+                    }, 200);
+                    lives--;
+                    resetPlayerPosition();
+                }
+            });
+            
+            // Collectible collision
+            collectibles.forEach(item => {
+                if (!item.collected &&
+                    player.x < item.x + item.width &&
+                    player.x + player.width > item.x &&
+                    player.y < item.y + item.height &&
+                    player.y + player.height > item.y) {
+                    
+                    item.collected = true;
+                    score += 100;
+                    sounds.collect && sounds.collect();
+                }
+            });
+        }
+        
+        function resetPlayerPosition() {
+            player.x = 100;
+            player.y = 400;
+            player.velX = 0;
+            player.velY = 0;
+            player.grounded = false;
+            player.wasGrounded = false;
+            
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = `Final Score: ${score}`;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        function restartGame() {
+            gameRunning = true;
+            score = 0;
+            lives = 3;
+            player.x = 100;
+            player.y = 400;
+            player.velX = 0;
+            player.velY = 0;
+            player.grounded = false;
+            player.wasGrounded = false;
+            
+            // Reset collectibles
+            collectibles.forEach(item => item.collected = false);
+            
+            document.getElementById('gameOver').style.display = 'none';
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+        }
+        
+        function gameLoop() {
+            if (gameRunning) {
+                // Resize canvas to fit screen properly
+                const container = document.getElementById('gameContainer');
+                const maxWidth = Math.min(800, window.innerWidth - 20);
+                const maxHeight = Math.min(600, window.innerHeight * 0.7);
+                
+                if (canvas.width !== 800 || canvas.height !== 600) {
+                    canvas.width = 800;
+                    canvas.height = 600;
+                }
+                
+                canvas.style.width = maxWidth + 'px';
+                canvas.style.height = (maxWidth * 600 / 800) + 'px';
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Update
+                updatePlayer();
+                updateEnemies();
+                checkCollisions();
+                updateUI();
+                
+                // Draw
+                drawPlatforms();
+                drawPlayer();
+                drawEnemies();
+                drawCollectibles();
+                drawParticles();
+                
+                // Check win condition
+                if (collectibles.every(item => item.collected)) {
+                    score += 1000;
+                    // Reset collectibles for endless play
+                    collectibles.forEach(item => item.collected = false);
+                }
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start the game
+        initAudio();
+        gameLoop();
+        
+        // Enable audio on first user interaction (required by browsers)
+        document.addEventListener('click', () => {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        });
+        
+        document.addEventListener('touchstart', () => {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        });
+    </script>
+</body>
+</html>
