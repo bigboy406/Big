@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders - Mobile Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a3a 100%);
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 600px;
+            max-height: 800px;
+        }
+        
+        #gameCanvas {
+            background: #000;
+            border: 2px solid #00ff00;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ff00;
+            font-size: 18px;
+            z-index: 10;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 10;
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #00ff00;
+            background: rgba(0, 255, 0, 0.1);
+            color: #00ff00;
+            font-size: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            touch-action: manipulation;
+            cursor: pointer;
+        }
+        
+        .control-btn:active {
+            background: rgba(0, 255, 0, 0.3);
+            transform: scale(0.95);
+        }
+        
+        #fireBtn {
+            background: rgba(255, 0, 0, 0.1);
+            border-color: #ff0000;
+            color: #ff0000;
+            width: 80px;
+            height: 80px;
+            font-size: 30px;
+        }
+        
+        #fireBtn:active {
+            background: rgba(255, 0, 0, 0.3);
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff00;
+            padding: 30px;
+            border: 2px solid #00ff00;
+            text-align: center;
+            display: none;
+            z-index: 20;
+        }
+        
+        #restartBtn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: transparent;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #restartBtn:hover {
+            background: rgba(0, 255, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            <div>Score: <span id="score">0</span></div>
+            <div>Lives: <span id="lives">3</span></div>
+            <div>Level: <span id="level">1</span></div>
+        </div>
+        <div id="controls">
+            <button class="control-btn" id="leftBtn">←</button>
+            <button class="control-btn" id="fireBtn">🚀</button>
+            <button class="control-btn" id="rightBtn">→</button>
+        </div>
+        <div id="gameOver">
+            <h2>GAME OVER</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <button id="restartBtn">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Game setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Game state
+        let gameState = {
+            score: 0,
+            lives: 5,
+            level: 1,
+            gameRunning: true,
+            keys: {}
+        };
+        
+        // Audio context for sound effects
+        let audioContext;
+        
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        
+        function playSound(frequency, duration, type = 'square') {
+            if (!audioContext) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+            
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+        
+        // Player
+        const player = {
+            x: 0,
+            y: 0,
+            width: 50,
+            height: 30,
+            speed: 7,
+            bullets: []
+        };
+        
+        // Invaders
+        let invaders = [];
+        let invaderBullets = [];
+        let invaderDirection = 1;
+        let invaderSpeed = 1;
+        
+        function createInvaders() {
+            invaders = [];
+            const rows = 4;
+            const cols = 6;
+            const invaderWidth = Math.min(40, canvas.width / 12);
+            const invaderHeight = Math.min(30, canvas.height / 25);
+            const spacing = Math.min(10, canvas.width / 60);
+            const startX = (canvas.width - (cols * (invaderWidth + spacing) - spacing)) / 2;
+            
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    invaders.push({
+                        x: startX + col * (invaderWidth + spacing),
+                        y: 50 + row * (invaderHeight + spacing),
+                        width: invaderWidth,
+                        height: invaderHeight,
+                        alive: true,
+                        type: row < 2 ? 'small' : row < 3 ? 'medium' : 'large'
+                    });
+                }
+            }
+        }
+        
+        // Initialize game
+        function initGame() {
+            player.x = canvas.width / 2 - 25;
+            player.y = canvas.height - 60;
+            player.bullets = [];
+            invaderBullets = [];
+            createInvaders();
+            invaderSpeed = 0.3 + gameState.level * 0.1;
+            invaderDirection = 1;
+        }
+        
+        // Input handling
+        const controls = {
+            left: false,
+            right: false,
+            fire: false,
+            firePressed: false
+        };
+        
+        // Touch controls
+        document.getElementById('leftBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            controls.left = true;
+            initAudio();
+        });
+        document.getElementById('leftBtn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            controls.left = false;
+        });
+        document.getElementById('leftBtn').addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            controls.left = false;
+        });
+        document.getElementById('leftBtn').addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            controls.left = true;
+            initAudio();
+        });
+        document.getElementById('leftBtn').addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            controls.left = false;
+        });
+        document.getElementById('leftBtn').addEventListener('mouseleave', (e) => {
+            controls.left = false;
+        });
+        
+        document.getElementById('rightBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            controls.right = true;
+            initAudio();
+        });
+        document.getElementById('rightBtn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            controls.right = false;
+        });
+        document.getElementById('rightBtn').addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            controls.right = false;
+        });
+        document.getElementById('rightBtn').addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            controls.right = true;
+            initAudio();
+        });
+        document.getElementById('rightBtn').addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            controls.right = false;
+        });
+        document.getElementById('rightBtn').addEventListener('mouseleave', (e) => {
+            controls.right = false;
+        });
+        
+        document.getElementById('fireBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            controls.fire = true;
+            initAudio();
+        });
+        document.getElementById('fireBtn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            controls.fire = false;
+        });
+        document.getElementById('fireBtn').addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            controls.fire = false;
+        });
+        document.getElementById('fireBtn').addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            controls.fire = true;
+            initAudio();
+        });
+        document.getElementById('fireBtn').addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            controls.fire = false;
+        });
+        document.getElementById('fireBtn').addEventListener('mouseleave', (e) => {
+            controls.fire = false;
+        });
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            initAudio();
+            switch(e.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    controls.left = true;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    controls.right = true;
+                    break;
+                case 'Space':
+                case 'Enter':
+                    e.preventDefault();
+                    if (!controls.firePressed) {
+                        controls.fire = true;
+                        controls.firePressed = true;
+                    }
+                    break;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    controls.left = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    controls.right = false;
+                    break;
+                case 'Space':
+                case 'Enter':
+                    controls.fire = false;
+                    controls.firePressed = false;
+                    break;
+            }
+        });
+        
+        // Game logic
+        function updatePlayer() {
+            if (controls.left && player.x > 0) {
+                player.x -= player.speed;
+            }
+            if (controls.right && player.x < canvas.width - player.width) {
+                player.x += player.speed;
+            }
+            if (controls.fire && player.bullets.length < 8) {
+                player.bullets.push({
+                    x: player.x + player.width / 2 - 2,
+                    y: player.y,
+                    width: 4,
+                    height: 10,
+                    speed: 10
+                });
+                playSound(800, 0.1);
+                controls.fire = false;
+            }
+        }
+        
+        function updateBullets() {
+            // Update player bullets
+            for (let i = player.bullets.length - 1; i >= 0; i--) {
+                const bullet = player.bullets[i];
+                bullet.y -= bullet.speed;
+                
+                if (bullet.y < 0) {
+                    player.bullets.splice(i, 1);
+                }
+            }
+            
+            // Update invader bullets
+            for (let i = invaderBullets.length - 1; i >= 0; i--) {
+                const bullet = invaderBullets[i];
+                bullet.y += bullet.speed;
+                
+                if (bullet.y > canvas.height) {
+                    invaderBullets.splice(i, 1);
+                }
+            }
+        }
+        
+        function updateInvaders() {
+            let hitEdge = false;
+            
+            for (const invader of invaders) {
+                if (!invader.alive) continue;
+                
+                invader.x += invaderDirection * invaderSpeed;
+                
+                if (invader.x <= 0 || invader.x >= canvas.width - invader.width) {
+                    hitEdge = true;
+                }
+            }
+            
+            if (hitEdge) {
+                invaderDirection *= -1;
+                for (const invader of invaders) {
+                    if (invader.alive) {
+                        invader.y += 20;
+                    }
+                }
+            }
+            
+            // Random invader shooting
+            if (Math.random() < 0.0005 + (gameState.level * 0.0002)) {
+                const bottomInvaders = [];
+                const cols = 6;
+                for (let col = 0; col < cols; col++) {
+                    for (let row = 3; row >= 0; row--) {
+                        const invader = invaders[row * cols + col];
+                        if (invader && invader.alive) {
+                            bottomInvaders.push(invader);
+                            break;
+                        }
+                    }
+                }
+                
+                if (bottomInvaders.length > 0) {
+                    const shooter = bottomInvaders[Math.floor(Math.random() * bottomInvaders.length)];
+                    invaderBullets.push({
+                        x: shooter.x + shooter.width / 2 - 2,
+                        y: shooter.y + shooter.height,
+                        width: 4,
+                        height: 8,
+                        speed: 2 + gameState.level * 0.3
+                    });
+                    playSound(300, 0.1);
+                }
+            }
+        }
+        
+        function checkCollisions() {
+            // Player bullets vs invaders
+            for (let i = player.bullets.length - 1; i >= 0; i--) {
+                const bullet = player.bullets[i];
+                
+                for (let j = 0; j < invaders.length; j++) {
+                    const invader = invaders[j];
+                    
+                    if (invader.alive && 
+                        bullet.x < invader.x + invader.width &&
+                        bullet.x + bullet.width > invader.x &&
+                        bullet.y < invader.y + invader.height &&
+                        bullet.y + bullet.height > invader.y) {
+                        
+                        invader.alive = false;
+                        player.bullets.splice(i, 1);
+                        
+                        const points = invader.type === 'small' ? 30 : 
+                                     invader.type === 'medium' ? 20 : 10;
+                        gameState.score += points;
+                        
+                        playSound(600, 0.2, 'sawtooth');
+                        break;
+                    }
+                }
+            }
+            
+            // Invader bullets vs player
+            for (let i = invaderBullets.length - 1; i >= 0; i--) {
+                const bullet = invaderBullets[i];
+                
+                if (bullet.x < player.x + player.width &&
+                    bullet.x + bullet.width > player.x &&
+                    bullet.y < player.y + player.height &&
+                    bullet.y + bullet.height > player.y) {
+                    
+                    invaderBullets.splice(i, 1);
+                    gameState.lives--;
+                    playSound(200, 0.3, 'sawtooth');
+                    
+                    if (gameState.lives <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+            
+            // Check if invaders reached player
+            for (const invader of invaders) {
+                if (invader.alive && invader.y + invader.height >= player.y) {
+                    gameOver();
+                    break;
+                }
+            }
+            
+            // Check if all invaders destroyed
+            if (invaders.every(invader => !invader.alive)) {
+                gameState.level++;
+                gameState.score += 100; // Level bonus
+                playSound(1000, 0.5, 'sine');
+                setTimeout(() => {
+                    initGame();
+                }, 1000);
+                return;
+            }
+        }
+        
+        function gameOver() {
+            gameState.gameRunning = false;
+            document.getElementById('finalScore').textContent = gameState.score;
+            document.getElementById('gameOver').style.display = 'block';
+            playSound(150, 1, 'sawtooth');
+        }
+        
+        function drawPlayer() {
+            ctx.fillStyle = '#00ff00';
+            // Draw player body with more detail
+            ctx.fillRect(player.x + 10, player.y + 10, 30, 20);
+            ctx.fillRect(player.x, player.y + 20, 50, 10);
+            
+            // Draw cannon
+            ctx.fillRect(player.x + player.width/2 - 3, player.y - 5, 6, 15);
+            
+            // Draw wings
+            ctx.fillRect(player.x + 5, player.y + 15, 10, 8);
+            ctx.fillRect(player.x + 35, player.y + 15, 10, 8);
+        }
+        
+        function drawInvaders() {
+            for (const invader of invaders) {
+                if (!invader.alive) continue;
+                
+                ctx.fillStyle = invader.type === 'small' ? '#ff0000' : 
+                               invader.type === 'medium' ? '#ffff00' : '#ff00ff';
+                
+                // Draw invader body
+                const frame = Math.floor(Date.now() / 500) % 2;
+                if (frame === 0) {
+                    // Frame 1
+                    ctx.fillRect(invader.x + 4, invader.y, invader.width - 8, invader.height - 10);
+                    ctx.fillRect(invader.x, invader.y + 5, invader.width, invader.height - 15);
+                    ctx.fillRect(invader.x + 8, invader.y + invader.height - 10, 6, 8);
+                    ctx.fillRect(invader.x + invader.width - 14, invader.y + invader.height - 10, 6, 8);
+                } else {
+                    // Frame 2 - slightly different for animation
+                    ctx.fillRect(invader.x + 6, invader.y, invader.width - 12, invader.height - 10);
+                    ctx.fillRect(invader.x + 2, invader.y + 5, invader.width - 4, invader.height - 15);
+                    ctx.fillRect(invader.x + 4, invader.y + invader.height - 10, 6, 8);
+                    ctx.fillRect(invader.x + invader.width - 10, invader.y + invader.height - 10, 6, 8);
+                }
+                
+                // Draw eyes
+                ctx.fillStyle = '#ffffff';
+                const eyeSize = Math.max(2, invader.width / 8);
+                ctx.fillRect(invader.x + invader.width * 0.25 - eyeSize/2, invader.y + invader.height * 0.3, eyeSize, eyeSize);
+                ctx.fillRect(invader.x + invader.width * 0.75 - eyeSize/2, invader.y + invader.height * 0.3, eyeSize, eyeSize);
+            }
+        }
+        
+        function drawBullets() {
+            // Player bullets
+            ctx.fillStyle = '#ffffff';
+            for (const bullet of player.bullets) {
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                // Add glow effect
+                ctx.shadowColor = '#ffffff';
+                ctx.shadowBlur = 5;
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                ctx.shadowBlur = 0;
+            }
+            
+            // Invader bullets
+            ctx.fillStyle = '#ff0000';
+            for (const bullet of invaderBullets) {
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                // Add glow effect
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 3;
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('lives').textContent = gameState.lives;
+            document.getElementById('level').textContent = gameState.level;
+        }
+        
+        function gameLoop() {
+            if (!gameState.gameRunning) return;
+            
+            // Clear canvas
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update game objects
+            updatePlayer();
+            updateBullets();
+            updateInvaders();
+            checkCollisions();
+            
+            // Draw everything
+            drawPlayer();
+            drawInvaders();
+            drawBullets();
+            
+            // Update UI
+            updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Restart game
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            gameState.score = 0;
+            gameState.lives = 5;
+            gameState.level = 1;
+            gameState.gameRunning = true;
+            document.getElementById('gameOver').style.display = 'none';
+            initGame();
+            gameLoop();
+        });
+        
+        // Start game
+        initGame();
+        gameLoop();
+        
+        // Handle visibility change for mobile
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                controls.left = false;
+                controls.right = false;
+                controls.fire = false;
+            }
+        });
+        
+        // Reset all controls on blur/focus lost
+        window.addEventListener('blur', () => {
+            controls.left = false;
+            controls.right = false;
+            controls.fire = false;
+        });
+        
+        // Also reset on any touch outside buttons
+        document.addEventListener('touchstart', (e) => {
+            if (!e.target.classList.contains('control-btn')) {
+                controls.left = false;
+                controls.right = false;
+                controls.fire = false;
+            }
+        });
+    </script>
+</body>
+</html>
